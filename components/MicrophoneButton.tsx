@@ -63,7 +63,15 @@ const MicrophoneButton: React.FC = () => {
                 dispatch({ type: 'SET_PLAYING', payload: true });
                 setButtonText('در حال پخش...');
                 
-                await playAudio(response.response);
+                try {
+                  await playAudio(response.response);
+                } catch (audioError) {
+                  console.error('Audio playback failed:', audioError);
+                  dispatch({ 
+                    type: 'SET_ERROR', 
+                    payload: 'پاسخ دریافت شد اما پخش صدا ناموفق بود.' 
+                  });
+                }
                 
                 dispatch({ type: 'SET_PLAYING', payload: false });
                 setButtonText('شروع گفتگو');

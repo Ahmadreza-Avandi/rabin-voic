@@ -90,7 +90,11 @@ export const stopListening = (recognition: any): void => {
 // Convert text to speech using external API
 export const textToSpeech = async (text: string): Promise<string> => {
   try {
-    const response = await fetch('/api/tts/convert', {
+    const API_BASE_URL = process.env.NODE_ENV === 'production' 
+      ? '/api' 
+      : 'http://localhost:3001/api';
+      
+    const response = await fetch(`${API_BASE_URL}/tts/convert`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -108,6 +112,8 @@ export const textToSpeech = async (text: string): Promise<string> => {
       throw new Error(data.error || 'خطا در تبدیل متن به گفتار');
     }
 
+    console.log('TTS Response:', data);
+    
     // Return audio URL or base64
     return data.audioUrl || data.audioBase64;
   } catch (error) {
@@ -119,32 +125,59 @@ export const textToSpeech = async (text: string): Promise<string> => {
 // Play audio from URL or base64
 export const playAudio = async (text: string): Promise<void> => {
   try {
+    console.log('Starting TTS for text:', text);
+    
     // Get audio from TTS service
     const audioData = await textToSpeech(text);
+    
+    console.log('Received audio data:', audioData ? 'Success' : 'Failed');
+    
+    if (!audioData) {
+      throw new Error('دریافت فایل صوتی ناموفق بود');
+    }
     
     let audioSrc: string;
     
     // Check if it's base64 or URL
-    if (audioData.startsWith('data:audio') || audioData.startsWith('http')) {
+    if (audioData.startsWith('data:audio') || audioData.startsWith('http') || audioData.startsWith('https')) {
       audioSrc = audioData;
     } else {
       // Assume it's base64 without prefix
       audioSrc = `data:audio/mpeg;base64,${audioData}`;
     }
 
+    console.log('Audio source prepared:', audioSrc.substring(0, 50) + '...');
+
     // Create and play audio
     const audio = new Audio(audioSrc);
     
+    // Set volume
+    audio.volume = 0.8;
+    
     return new Promise((resolve, reject) => {
+      audio.addEventListener('loadstart', () => {
+        console.log('Audio loading started');
+      });
+      
+      audio.addEventListener('canplay', () => {
+        console.log('Audio can play');
+      });
+      
+      audio.addEventListener('loadeddata', () => {
+        console.log('Audio data loaded');
+      });
+      
       audio.addEventListener('ended', () => resolve());
       audio.addEventListener('error', (e) => {
         console.error('Audio playback error:', e);
-        reject(new Error('خطا در پخش صدا'));
+        console.error('Audio error details:', audio.error);
+        reject(new Error(`خطا در پخش صدا: ${audio.error?.message || 'نامشخص'}`));
       });
       
+      console.log('Starting audio playback...');
       audio.play().catch((error) => {
         console.error('Audio play error:', error);
-        reject(new Error('خطا در پخش صدا'));
+        reject(new Error(`خطا در شروع پخش: ${error.message}`));
       });
     });
     
