@@ -81,28 +81,28 @@ export function RobinProvider({ children }: { children: React.ReactNode }) {
     const storedHistory = getStoredHistory();
     dispatch({ type: 'LOAD_HISTORY', payload: storedHistory });
 
-    // Request microphone permission with delay
-    const timer = setTimeout(() => {
-      requestMicrophonePermission();
-    }, 1000);
-
-    return () => clearTimeout(timer);
+    // Request microphone permission and start listening automatically
+    requestMicrophonePermissionAndStart();
   }, []);
 
-  const requestMicrophonePermission = async () => {
+  const requestMicrophonePermissionAndStart = async () => {
     try {
-      console.log('🎤 درخواست دسترسی میکروفون...');
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      console.log('✅ دسترسی میکروفون موفق');
       dispatch({ type: 'SET_MICROPHONE_PERMISSION', payload: true });
       // Stop the stream immediately after getting permission
       stream.getTracks().forEach(track => track.stop());
+
+      // Auto-start listening after permission granted
+      setTimeout(() => {
+        if (typeof window !== 'undefined') {
+          dispatch({ type: 'SET_LISTENING', payload: true });
+        }
+      }, 1000);
     } catch (error) {
-      console.error('❌ خطا در دسترسی میکروفون:', error);
       dispatch({ type: 'SET_MICROPHONE_PERMISSION', payload: false });
-      dispatch({ 
-        type: 'SET_ERROR', 
-        payload: `دسترسی به میکروفون امکان‌پذیر نیست: ${error.message}. لطفاً دسترسی را در تنظیمات مرورگر فعال کنید.` 
+      dispatch({
+        type: 'SET_ERROR',
+        payload: 'دسترسی به میکروفون امکان‌پذیر نیست. لطفاً دسترسی را در تنظیمات مرورگر فعال کنید.'
       });
     }
   };

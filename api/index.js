@@ -6,6 +6,13 @@ const ttsRoutes = require('./routes/tts');
 
 dotenv.config();
 
+// Debug environment variables
+console.log('🔧 Environment Variables:');
+console.log('PORT:', process.env.PORT);
+console.log('OPENROUTER_API_KEY:', process.env.OPENROUTER_API_KEY ? 'Set ✓' : 'Missing ✗');
+console.log('OPENROUTER_MODEL:', process.env.OPENROUTER_MODEL);
+console.log('TTS_API_URL:', process.env.TTS_API_URL);
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 

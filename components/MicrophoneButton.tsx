@@ -3,60 +3,51 @@
 import React, { useState, useRef } from 'react';
 import { Mic, MicOff, Volume2, Loader2 } from 'lucide-react';
 import { useRobin } from '@/contexts/RobinContext';
-import { startListening, stopListening, playAudio } from '@/utils/speech';
+import { startListening, stopListening, playAudio, enableAudio } from '@/utils/speech';
 import { processMessage } from '@/utils/api';
 
 const MicrophoneButton: React.FC = () => {
   const { state, dispatch } = useRobin();
   const recognitionRef = useRef<any>(null);
   const [buttonText, setButtonText] = useState('شروع گفتگو');
-  const [autoStarted, setAutoStarted] = useState(false);
+  const autoStartRef = useRef<boolean>(false);
 
-  // Auto-start listening when microphone permission is granted
-  useEffect(() => {
-    if (state.microphonePermission && !autoStarted && !state.isListening && !state.isProcessing && !state.isPlaying) {
-      console.log('🚀 شروع خودکار گوش دادن...');
-      setAutoStarted(true);
-      setTimeout(() => {
-        startListening();
-      }, 500);
+  // Auto-start listening when permission is granted
+  React.useEffect(() => {
+    if (state.microphonePermission && state.isListening && !autoStartRef.current) {
+      autoStartRef.current = true;
+      startListeningProcess();
     }
-  }, [state.microphonePermission, autoStarted, state.isListening, state.isProcessing, state.isPlaying]);
+  }, [state.microphonePermission, state.isListening]);
 
-  const startListening = async () => {
+  const startListeningProcess = async () => {
     if (!state.microphonePermission) {
-      dispatch({ 
-        type: 'SET_ERROR', 
-        payload: 'دسترسی به میکروفون لازم است. لطفاً دسترسی را بدهید و صفحه را رفرش کنید.' 
+      dispatch({
+        type: 'SET_ERROR',
+        payload: 'دسترسی به میکروفون لازم است. لطفاً صفحه را رفرش کنید و دسترسی را بدهید.'
       });
       return;
     }
 
-    if (state.isProcessing || state.isPlaying) {
-      // Cannot start while processing or playing
-      return;
-    }
-
-    // Start listening
     dispatch({ type: 'SET_ERROR', payload: null });
-    dispatch({ type: 'SET_LISTENING', payload: true });
     setButtonText('در حال گوش دادن...');
-    
+
     try {
-      recognitionRef.current = startSpeechRecognition({
+      recognitionRef.current = startListening({
         onResult: (transcript: string) => {
           dispatch({ type: 'SET_CURRENT_MESSAGE', payload: transcript });
         },
         onEnd: async (finalTranscript: string) => {
           dispatch({ type: 'SET_LISTENING', payload: false });
           setButtonText('در حال پردازش...');
-          
-          if (finalTranscript.trim()) {
+
+          const messageToSend = finalTranscript.trim() || state.currentMessage.trim();
+          if (messageToSend) {
             dispatch({ type: 'SET_PROCESSING', payload: true });
-            
+
             try {
-              const response = await processMessage(finalTranscript, state.history);
-              
+              const response = await processMessage(messageToSend, state.history);
+
               // Add to history
               dispatch({
                 type: 'ADD_MESSAGE',
@@ -70,31 +61,31 @@ const MicrophoneButton: React.FC = () => {
               // Play audio response
               dispatch({ type: 'SET_PLAYING', payload: true });
               setButtonText('در حال پخش...');
-              
+
               try {
                 await playAudio(response.response);
               } catch (audioError) {
                 console.error('Audio playback failed:', audioError);
-                dispatch({ 
-                  type: 'SET_ERROR', 
-                  payload: 'پاسخ دریافت شد اما پخش صدا ناموفق بود.' 
+                dispatch({
+                  type: 'SET_ERROR',
+                  payload: 'پاسخ دریافت شد اما پخش صدا ناموفق بود.'
                 });
               }
-              
+
               dispatch({ type: 'SET_PLAYING', payload: false });
-              setButtonText('شروع گفتگو');
-              
+
               // Auto-restart listening after response
               setTimeout(() => {
                 if (state.microphonePermission) {
-                  startListening();
+                  dispatch({ type: 'SET_LISTENING', payload: true });
+                  startListeningProcess();
                 }
-              }, 1000);
-              
+              }, 500); // کاهش تاخیر برای پاسخ سریع‌تر
+
             } catch (error) {
-              dispatch({ 
-                type: 'SET_ERROR', 
-                payload: 'خطا در پردازش پیام. لطفاً دوباره تلاش کنید.' 
+              dispatch({
+                type: 'SET_ERROR',
+                payload: 'خطا در پردازش پیام. لطفاً دوباره تلاش کنید.'
               });
               setButtonText('شروع گفتگو');
             } finally {
@@ -102,46 +93,56 @@ const MicrophoneButton: React.FC = () => {
               dispatch({ type: 'SET_CURRENT_MESSAGE', payload: '' });
             }
           } else {
-            setButtonText('شروع گفتگو');
-            // Auto-restart listening even if no speech detected
+            // Auto-restart listening if no speech detected
             setTimeout(() => {
               if (state.microphonePermission) {
-                startListening();
+                dispatch({ type: 'SET_LISTENING', payload: true });
+                startListeningProcess();
               }
-            }, 2000);
+            }, 500);
           }
         },
         onError: (error: string) => {
           dispatch({ type: 'SET_LISTENING', payload: false });
           dispatch({ type: 'SET_ERROR', payload: error });
           setButtonText('شروع گفتگو');
-          
+
           // Auto-restart listening after error
           setTimeout(() => {
-            if (state.microphonePermission) {
-              startListening();
-            }
-          }, 3000);
+            dispatch({ type: 'SET_LISTENING', payload: true });
+            startListeningProcess();
+          }, 2000);
         },
       });
     } catch (error) {
       dispatch({ type: 'SET_LISTENING', payload: false });
-      dispatch({ 
-        type: 'SET_ERROR', 
-        payload: 'خطا در راه‌اندازی میکروفون. لطفاً دوباره تلاش کنید.' 
+      dispatch({
+        type: 'SET_ERROR',
+        payload: 'خطا در راه‌اندازی میکروفون. لطفاً دوباره تلاش کنید.'
       });
       setButtonText('شروع گفتگو');
     }
   };
 
   const handleMicrophoneClick = async () => {
+    // Enable audio on first user interaction
+    await enableAudio();
+    
     if (state.isListening) {
       // Stop listening
       stopListening(recognitionRef.current);
       dispatch({ type: 'SET_LISTENING', payload: false });
       setButtonText('شروع گفتگو');
+      autoStartRef.current = false;
+    } else if (state.isProcessing || state.isPlaying) {
+      // Cannot start while processing or playing
+      return;
     } else {
-      startListening();
+      // Start listening manually
+      dispatch({ type: 'SET_LISTENING', payload: true });
+      startListeningProcess();
+      // Provide immediate visual feedback
+      setButtonText('در حال گوش دادن...');
     }
   };
 
@@ -154,7 +155,7 @@ const MicrophoneButton: React.FC = () => {
 
   const getButtonClasses = () => {
     const baseClasses = 'w-32 h-32 md:w-40 md:h-40 rounded-full border-4 border-white shadow-2xl transition-all duration-300 flex flex-col items-center justify-center text-white font-bold status-indicator';
-    
+
     switch (getButtonState()) {
       case 'listening':
         return `${baseClasses} robin-gold listening-pulse cursor-pointer status-listening`;
@@ -169,7 +170,7 @@ const MicrophoneButton: React.FC = () => {
 
   const renderIcon = () => {
     const iconSize = 32;
-    
+
     switch (getButtonState()) {
       case 'listening':
         return <Mic size={iconSize} className="mb-1" />;
@@ -178,8 +179,8 @@ const MicrophoneButton: React.FC = () => {
       case 'playing':
         return <Volume2 size={iconSize} className="mb-1" />;
       default:
-        return state.microphonePermission ? 
-          <Mic size={iconSize} className="mb-1" /> : 
+        return state.microphonePermission ?
+          <Mic size={iconSize} className="mb-1" /> :
           <MicOff size={iconSize} className="mb-1" />;
     }
   };
@@ -198,11 +199,11 @@ const MicrophoneButton: React.FC = () => {
       {/* Main Microphone Button */}
       <button
         onClick={handleMicrophoneClick}
-        disabled={state.isProcessing || state.isPlaying}
+        disabled={state.isProcessing}
         className={getButtonClasses()}
       >
         {renderIcon()}
-        <span className="text-sm mt-1 px-2 text-center leading-tight">
+        <span className="text-xs mt-1 px-2 text-center leading-tight">
           {buttonText}
         </span>
       </button>
@@ -214,22 +215,14 @@ const MicrophoneButton: React.FC = () => {
         </div>
       )}
 
-      {/* Status Information */}
-      <div className="text-center space-y-2">
-        <div className="flex items-center justify-center space-x-4 space-x-reverse text-sm text-green-700">
-          <div className="flex items-center">
-            <div className={`w-3 h-3 rounded-full ml-2 ${
-              state.microphonePermission ? 'bg-green-500' : 'bg-red-500'
+      {/* Simple Status */}
+      <div className="text-center">
+        <div className={`inline-flex items-center px-3 py-1 rounded-full text-xs ${state.microphonePermission ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+          }`}>
+          <div className={`w-2 h-2 rounded-full ml-2 ${state.microphonePermission ? 'bg-green-500' : 'bg-red-500'
             }`}></div>
-            میکروفون: {state.microphonePermission ? 'آماده' : 'غیرفعال'}
-          </div>
+          {state.microphonePermission ? 'آماده برای گفتگو' : 'میکروفون غیرفعال'}
         </div>
-        
-        {!state.isListening && !state.isProcessing && !state.isPlaying && (
-          <p className="text-green-600 text-sm">
-            برای شروع گفتگو، دکمه را فشار دهید
-          </p>
-        )}
       </div>
     </div>
   );
