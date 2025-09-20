@@ -32,14 +32,15 @@ router.post('/convert', async (req, res) => {
     console.log('TTS API Response status:', response.status);
     console.log('TTS API Response data:', response.data);
 
-    if (response.data.success) {
+    if (response.data.data && response.data.data.status === 'success') {
       res.json({
         success: true,
-        audioUrl: response.data.data.audioUrl,
-        audioBase64: response.data.data.audioBase64
+        audioUrl: `https://${response.data.data.data.filePath}`,
+        filePath: response.data.data.data.filePath,
+        checksum: response.data.data.data.checksum
       });
     } else {
-      console.error('TTS API returned success=false:', response.data);
+      console.error('TTS API returned error:', response.data);
       throw new Error('خطا در تبدیل متن به صدا');
     }
 

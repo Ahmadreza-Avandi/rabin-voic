@@ -114,8 +114,8 @@ export const textToSpeech = async (text: string): Promise<string> => {
 
     console.log('TTS Response:', data);
     
-    // Return audio URL or base64
-    return data.audioUrl || data.audioBase64;
+    // Return audio URL
+    return data.audioUrl;
   } catch (error) {
     console.error('TTS Error:', error);
     throw new Error('خطا در تبدیل متن به گفتار');
@@ -136,15 +136,7 @@ export const playAudio = async (text: string): Promise<void> => {
       throw new Error('دریافت فایل صوتی ناموفق بود');
     }
     
-    let audioSrc: string;
-    
-    // Check if it's base64 or URL
-    if (audioData.startsWith('data:audio') || audioData.startsWith('http') || audioData.startsWith('https')) {
-      audioSrc = audioData;
-    } else {
-      // Assume it's base64 without prefix
-      audioSrc = `data:audio/mpeg;base64,${audioData}`;
-    }
+    const audioSrc = audioData;
 
     console.log('Audio source prepared:', audioSrc.substring(0, 50) + '...');
 
