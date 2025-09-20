@@ -10,100 +10,138 @@ const MicrophoneButton: React.FC = () => {
   const { state, dispatch } = useRobin();
   const recognitionRef = useRef<any>(null);
   const [buttonText, setButtonText] = useState('شروع گفتگو');
+  const [autoStarted, setAutoStarted] = useState(false);
 
-  const handleMicrophoneClick = async () => {
+  // Auto-start listening when microphone permission is granted
+  useEffect(() => {
+    if (state.microphonePermission && !autoStarted && !state.isListening && !state.isProcessing && !state.isPlaying) {
+      console.log('🚀 شروع خودکار گوش دادن...');
+      setAutoStarted(true);
+      setTimeout(() => {
+        startListening();
+      }, 500);
+    }
+  }, [state.microphonePermission, autoStarted, state.isListening, state.isProcessing, state.isPlaying]);
+
+  const startListening = async () => {
     if (!state.microphonePermission) {
       dispatch({ 
         type: 'SET_ERROR', 
-        payload: 'دسترسی به میکروفون لازم است. لطفاً صفحه را رفرش کنید و دسترسی را بدهید.' 
+        payload: 'دسترسی به میکروفون لازم است. لطفاً دسترسی را بدهید و صفحه را رفرش کنید.' 
       });
       return;
     }
 
+    if (state.isProcessing || state.isPlaying) {
+      // Cannot start while processing or playing
+      return;
+    }
+
+    // Start listening
+    dispatch({ type: 'SET_ERROR', payload: null });
+    dispatch({ type: 'SET_LISTENING', payload: true });
+    setButtonText('در حال گوش دادن...');
+    
+    try {
+      recognitionRef.current = startSpeechRecognition({
+        onResult: (transcript: string) => {
+          dispatch({ type: 'SET_CURRENT_MESSAGE', payload: transcript });
+        },
+        onEnd: async (finalTranscript: string) => {
+          dispatch({ type: 'SET_LISTENING', payload: false });
+          setButtonText('در حال پردازش...');
+          
+          if (finalTranscript.trim()) {
+            dispatch({ type: 'SET_PROCESSING', payload: true });
+            
+            try {
+              const response = await processMessage(finalTranscript, state.history);
+              
+              // Add to history
+              dispatch({
+                type: 'ADD_MESSAGE',
+                payload: {
+                  user: finalTranscript,
+                  robin: response.response,
+                  timestamp: new Date(),
+                },
+              });
+
+              // Play audio response
+              dispatch({ type: 'SET_PLAYING', payload: true });
+              setButtonText('در حال پخش...');
+              
+              try {
+                await playAudio(response.response);
+              } catch (audioError) {
+                console.error('Audio playback failed:', audioError);
+                dispatch({ 
+                  type: 'SET_ERROR', 
+                  payload: 'پاسخ دریافت شد اما پخش صدا ناموفق بود.' 
+                });
+              }
+              
+              dispatch({ type: 'SET_PLAYING', payload: false });
+              setButtonText('شروع گفتگو');
+              
+              // Auto-restart listening after response
+              setTimeout(() => {
+                if (state.microphonePermission) {
+                  startListening();
+                }
+              }, 1000);
+              
+            } catch (error) {
+              dispatch({ 
+                type: 'SET_ERROR', 
+                payload: 'خطا در پردازش پیام. لطفاً دوباره تلاش کنید.' 
+              });
+              setButtonText('شروع گفتگو');
+            } finally {
+              dispatch({ type: 'SET_PROCESSING', payload: false });
+              dispatch({ type: 'SET_CURRENT_MESSAGE', payload: '' });
+            }
+          } else {
+            setButtonText('شروع گفتگو');
+            // Auto-restart listening even if no speech detected
+            setTimeout(() => {
+              if (state.microphonePermission) {
+                startListening();
+              }
+            }, 2000);
+          }
+        },
+        onError: (error: string) => {
+          dispatch({ type: 'SET_LISTENING', payload: false });
+          dispatch({ type: 'SET_ERROR', payload: error });
+          setButtonText('شروع گفتگو');
+          
+          // Auto-restart listening after error
+          setTimeout(() => {
+            if (state.microphonePermission) {
+              startListening();
+            }
+          }, 3000);
+        },
+      });
+    } catch (error) {
+      dispatch({ type: 'SET_LISTENING', payload: false });
+      dispatch({ 
+        type: 'SET_ERROR', 
+        payload: 'خطا در راه‌اندازی میکروفون. لطفاً دوباره تلاش کنید.' 
+      });
+      setButtonText('شروع گفتگو');
+    }
+  };
+
+  const handleMicrophoneClick = async () => {
     if (state.isListening) {
       // Stop listening
       stopListening(recognitionRef.current);
       dispatch({ type: 'SET_LISTENING', payload: false });
       setButtonText('شروع گفتگو');
-    } else if (state.isProcessing || state.isPlaying) {
-      // Cannot start while processing or playing
-      return;
     } else {
-      // Start listening
-      dispatch({ type: 'SET_ERROR', payload: null });
-      dispatch({ type: 'SET_LISTENING', payload: true });
-      setButtonText('در حال گوش دادن...');
-      
-      try {
-        recognitionRef.current = startSpeechRecognition({
-          onResult: (transcript: string) => {
-            dispatch({ type: 'SET_CURRENT_MESSAGE', payload: transcript });
-          },
-          onEnd: async (finalTranscript: string) => {
-            dispatch({ type: 'SET_LISTENING', payload: false });
-            setButtonText('در حال پردازش...');
-            
-            if (finalTranscript.trim()) {
-              dispatch({ type: 'SET_PROCESSING', payload: true });
-              
-              try {
-                const response = await processMessage(finalTranscript, state.history);
-                
-                // Add to history
-                dispatch({
-                  type: 'ADD_MESSAGE',
-                  payload: {
-                    user: finalTranscript,
-                    robin: response.response,
-                    timestamp: new Date(),
-                  },
-                });
-
-                // Play audio response
-                dispatch({ type: 'SET_PLAYING', payload: true });
-                setButtonText('در حال پخش...');
-                
-                try {
-                  await playAudio(response.response);
-                } catch (audioError) {
-                  console.error('Audio playback failed:', audioError);
-                  dispatch({ 
-                    type: 'SET_ERROR', 
-                    payload: 'پاسخ دریافت شد اما پخش صدا ناموفق بود.' 
-                  });
-                }
-                
-                dispatch({ type: 'SET_PLAYING', payload: false });
-                setButtonText('شروع گفتگو');
-                
-              } catch (error) {
-                dispatch({ 
-                  type: 'SET_ERROR', 
-                  payload: 'خطا در پردازش پیام. لطفاً دوباره تلاش کنید.' 
-                });
-                setButtonText('شروع گفتگو');
-              } finally {
-                dispatch({ type: 'SET_PROCESSING', payload: false });
-                dispatch({ type: 'SET_CURRENT_MESSAGE', payload: '' });
-              }
-            } else {
-              setButtonText('شروع گفتگو');
-            }
-          },
-          onError: (error: string) => {
-            dispatch({ type: 'SET_LISTENING', payload: false });
-            dispatch({ type: 'SET_ERROR', payload: error });
-            setButtonText('شروع گفتگو');
-          },
-        });
-      } catch (error) {
-        dispatch({ type: 'SET_LISTENING', payload: false });
-        dispatch({ 
-          type: 'SET_ERROR', 
-          payload: 'خطا در راه‌اندازی میکروفون. لطفاً دوباره تلاش کنید.' 
-        });
-        setButtonText('شروع گفتگو');
-      }
+      startListening();
     }
   };
 

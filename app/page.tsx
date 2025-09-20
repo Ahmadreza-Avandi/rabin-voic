@@ -53,7 +53,7 @@ export default function Home() {
         {/* Footer */}
         <footer className="text-center py-8 mt-16">
           <p className="text-green-600">
-            رابین آماده گوش دادن است - شروع به صحبت کنید
+            {isClient ? 'رابین آماده گوش دادن است - شروع به صحبت کنید' : 'در حال بارگذاری...'}
           </p>
         </footer>
       </div>

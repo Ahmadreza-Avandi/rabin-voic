@@ -17,6 +17,8 @@ export const startSpeechRecognition = (options: SpeechRecognitionOptions): any =
     return null;
   }
 
+  console.log('🎤 شروع تشخیص گفتار...');
+
   const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
   const recognition = new SpeechRecognition();
 
@@ -24,11 +26,16 @@ export const startSpeechRecognition = (options: SpeechRecognitionOptions): any =
   recognition.continuous = false;
   recognition.interimResults = true;
   recognition.maxAlternatives = 1;
+  
+  // Add timeout settings
+  recognition.grammars = null;
+  recognition.serviceURI = '';
 
   let finalTranscript = '';
   let interimTranscript = '';
 
   recognition.onresult = (event: any) => {
+    console.log('🎯 نتیجه تشخیص گفتار دریافت شد');
     interimTranscript = '';
     
     for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -36,8 +43,10 @@ export const startSpeechRecognition = (options: SpeechRecognitionOptions): any =
       
       if (event.results[i].isFinal) {
         finalTranscript += transcript;
+        console.log('✅ متن نهایی:', finalTranscript);
       } else {
         interimTranscript += transcript;
+        console.log('⏳ متن موقت:', interimTranscript);
       }
     }
 
@@ -47,17 +56,23 @@ export const startSpeechRecognition = (options: SpeechRecognitionOptions): any =
   };
 
   recognition.onend = () => {
+    console.log('🔚 تشخیص گفتار پایان یافت');
     // Clean up transcript and send final result
     const cleanTranscript = finalTranscript.trim();
     options.onEnd(cleanTranscript);
   };
 
+  recognition.onstart = () => {
+    console.log('▶️ تشخیص گفتار شروع شد');
+  };
+
   recognition.onerror = (event: any) => {
+    console.error('❌ خطا در تشخیص گفتار:', event.error);
     let errorMessage = 'خطای نامشخص در تشخیص گفتار';
     
     switch (event.error) {
       case 'no-speech':
-        errorMessage = 'صدایی شنیده نشد. لطفاً دوباره تلاش کنید.';
+        errorMessage = 'صدایی شنیده نشد. در حال تلاش مجدد...';
         break;
       case 'audio-capture':
         errorMessage = 'خطا در دسترسی به میکروفون';
@@ -71,12 +86,21 @@ export const startSpeechRecognition = (options: SpeechRecognitionOptions): any =
       case 'service-not-allowed':
         errorMessage = 'سرویس تشخیص گفتار دردسترس نیست';
         break;
+      case 'aborted':
+        errorMessage = 'تشخیص گفتار لغو شد';
+        break;
     }
     
     options.onError(errorMessage);
   };
 
-  recognition.start();
+  try {
+    recognition.start();
+  } catch (error) {
+    console.error('❌ خطا در شروع تشخیص گفتار:', error);
+    options.onError('خطا در شروع تشخیص گفتار');
+  }
+  
   return recognition;
 };
 
