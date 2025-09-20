@@ -11,7 +11,7 @@ export const isSpeechRecognitionSupported = (): boolean => {
 };
 
 // Start listening to user speech
-export const startListening = (options: SpeechRecognitionOptions): any => {
+export const startSpeechRecognition = (options: SpeechRecognitionOptions): any => {
   if (!isSpeechRecognitionSupported()) {
     options.onError('تشخیص گفتار در این مرورگر پشتیبانی نمی‌شود');
     return null;

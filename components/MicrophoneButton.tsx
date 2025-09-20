@@ -3,7 +3,7 @@
 import React, { useState, useRef } from 'react';
 import { Mic, MicOff, Volume2, Loader2 } from 'lucide-react';
 import { useRobin } from '@/contexts/RobinContext';
-import { startListening, stopListening, playAudio } from '@/utils/speech';
+import { startSpeechRecognition, stopListening, playAudio } from '@/utils/speech';
 import { processMessage } from '@/utils/api';
 
 const MicrophoneButton: React.FC = () => {
