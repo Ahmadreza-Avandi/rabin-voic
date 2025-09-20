@@ -53,7 +53,7 @@ export default function Home() {
         {/* Footer */}
         <footer className="text-center py-8 mt-16">
           <p className="text-green-600">
-            برای شروع، دکمه میکروفون را فشار دهید و با رابین صحبت کنید
+            رابین آماده گوش دادن است - شروع به صحبت کنید
           </p>
         </footer>
       </div>

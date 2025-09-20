@@ -3,7 +3,7 @@
 import React, { useState, useRef } from 'react';
 import { Mic, MicOff, Volume2, Loader2 } from 'lucide-react';
 import { useRobin } from '@/contexts/RobinContext';
-import { startSpeechRecognition, stopListening, playAudio } from '@/utils/speech';
+import { startListening, stopListening, playAudio } from '@/utils/speech';
 import { processMessage } from '@/utils/api';
 
 const MicrophoneButton: React.FC = () => {
@@ -35,7 +35,7 @@ const MicrophoneButton: React.FC = () => {
       setButtonText('در حال گوش دادن...');
       
       try {
-        recognitionRef.current = startListening({
+        recognitionRef.current = startSpeechRecognition({
           onResult: (transcript: string) => {
             dispatch({ type: 'SET_CURRENT_MESSAGE', payload: transcript });
           },
